@@ -46,9 +46,11 @@ try:
 except:
     pass
 
+has_win32gui = False
 try:
     import win32gui
     import win32con
+    has_win32gui = True
 except:
     pass
 
@@ -576,6 +578,9 @@ class ChronoFrame(chronoFrame):
         return filename
 
     def saveTargetWindows(self, filename, target_windows):
+        if not has_win32gui:
+            return self.saveScreenshot(filename)
+
         timestamp = self.getConfig('screenshot_timestamp')
         folder = self.getConfig('screenshot_save_folder')
         prefix = self.getConfig('screenshot_prefix')
@@ -1865,7 +1870,7 @@ You can download the new version at:
         self.Close()
 
     def onRefreshWindowsPressed(self, event):
-        if not ON_WINDOWS:
+        if not ON_WINDOWS or not has_win32gui:
             return
 
         all_windows = []
