@@ -34,6 +34,8 @@ import urllib.request
 import threading
 
 from PIL import Image, ImageDraw, ImageFont
+import mss
+import mss.tools
 
 logging.basicConfig(level=logging.ERROR)
 
@@ -41,6 +43,12 @@ can_check_idle_time = False
 try:
     import win32api
     can_check_idle_time = True
+except:
+    pass
+
+try:
+    import win32gui
+    import win32con
 except:
     pass
 
@@ -190,6 +198,8 @@ class ChronoFrame(chronoFrame):
                 'screenshot_subsection_left': '0',
                 'screenshot_subsection_width': '800',
                 'screenshot_subsection_height': '600',
+
+                'target_windows': 'Jules, GitHub Desktop, RPG Maker',
 
                 'use_webcam': False,
                 'webcam_timestamp': True,
@@ -529,7 +539,17 @@ class ChronoFrame(chronoFrame):
         # if screenshots
         if self.getConfig('use_screenshot'):
             # take screenshot
-            self.saveScreenshot(filename)
+            target_windows_str = self.getConfig('target_windows')
+            target_windows = [w.strip() for w in target_windows_str.split(',') if w.strip()]
+
+            if ON_WINDOWS and target_windows:
+                try:
+                    self.saveTargetWindows(filename, target_windows)
+                except Exception as e:
+                    logging.error("Failed to capture target windows: %s" % e)
+                    self.saveScreenshot(filename)
+            else:
+                self.saveScreenshot(filename)
 
         # if webcam
         if self.getConfig('use_webcam'):
@@ -538,6 +558,78 @@ class ChronoFrame(chronoFrame):
             self.saveWebcam(filename)
 
         return filename
+
+    def saveTargetWindows(self, filename, target_windows):
+        timestamp = self.getConfig('screenshot_timestamp')
+        folder = self.getConfig('screenshot_save_folder')
+        prefix = self.getConfig('screenshot_prefix')
+        file_format = self.getConfig('screenshot_format')
+
+        def callback(hwnd, windows):
+            if win32gui.IsWindowVisible(hwnd):
+                title = win32gui.GetWindowText(hwnd)
+                if title:
+                    windows.append((hwnd, title))
+            return True
+
+        all_windows = []
+        win32gui.EnumWindows(callback, all_windows)
+
+        with mss.mss() as sct:
+            for target_name in target_windows:
+                for hwnd, title in all_windows:
+                    if target_name.lower() in title.lower():
+                        try:
+                            # Try to get the window rect
+                            rect = win32gui.GetWindowRect(hwnd)
+                            left, top, right, bottom = rect
+                            width = right - left
+                            height = bottom - top
+
+                            # Ignore invisible/minimized windows properly
+                            if width <= 0 or height <= 0:
+                                continue
+
+                            monitor = {"top": top, "left": left, "width": width, "height": height}
+
+                            sct_img = sct.grab(monitor)
+
+                            img = Image.frombytes("RGB", sct_img.size, sct_img.bgra, "raw", "BGRX")
+
+                            if timestamp:
+                                stamp = time.strftime(self.getConfig('screenshot_timestamp_format'))
+                                if self.countdown < 1:
+                                    now = time.time()
+                                    micro = str(now - math.floor(now))[0:4]
+                                    stamp = stamp + micro
+
+                                draw = ImageDraw.Draw(img)
+                                font = ImageFont.load_default()
+                                draw.text((20, img.height - 30), stamp, fill=(255, 255, 255), font=font)
+
+                            # Save with window name appended
+                            safe_title = "".join([c for c in title if c.isalpha() or c.isdigit() or c==' ']).rstrip()
+                            if not safe_title:
+                                safe_title = target_name.replace(" ", "")
+
+                            safe_name = safe_title.replace(" ", "_")
+
+                            # Construct new filename
+                            name, ext = os.path.splitext(filename)
+                            new_filename = f"{name}_{safe_name}{ext}"
+
+                            if file_format == 'gif':
+                                fileName = os.path.join(folder, "%s%s.gif" % (prefix, new_filename))
+                                img.save(fileName, "GIF")
+                            elif file_format == 'png':
+                                fileName = os.path.join(folder, "%s%s.png" % (prefix, new_filename))
+                                img.save(fileName, "PNG")
+                            else:
+                                fileName = os.path.join(folder, "%s%s.jpg" % (prefix, new_filename))
+                                img.save(fileName, "JPEG")
+
+                        except Exception as e:
+                            logging.error("Could not capture window %s: %s" % (title, e))
 
     def saveScreenshot(self, filename):
         timestamp = self.getConfig('screenshot_timestamp')
