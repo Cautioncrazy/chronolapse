@@ -49,7 +49,11 @@ except:
 try:
     import win32gui
     import win32con
-    import ctypes
+except:
+    pass
+
+import ctypes
+try:
     from ctypes.wintypes import RECT
 except:
     pass
