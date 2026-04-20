@@ -56,6 +56,8 @@ except:
 
 from chronolapsegui import *
 
+ON_WINDOWS = sys.platform.startswith('win')
+
 if ON_WINDOWS:
     try:
         ctypes.windll.user32.SetProcessDPIAware()
@@ -63,8 +65,6 @@ if ON_WINDOWS:
         logging.error("Failed to set DPI awareness: %s" % e)
 
 
-
-ON_WINDOWS = sys.platform.startswith('win')
 
 
 class ChronoFrame(chronoFrame):
