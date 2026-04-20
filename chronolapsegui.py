@@ -257,7 +257,7 @@ class chronoFrame(wx.Frame):
         grid_sizer_25 = wx.FlexGridSizer(1, 2, 0, 0)
         grid_sizer_22 = wx.FlexGridSizer(1, 2, 0, 0)
         grid_sizer_21 = wx.FlexGridSizer(1, 2, 0, 0)
-        grid_sizer_1 = wx.FlexGridSizer(4, 1, 0, 0)
+        grid_sizer_1 = wx.FlexGridSizer(5, 1, 0, 0)
         grid_sizer_26 = wx.FlexGridSizer(1, 2, 0, 0)
         grid_sizer_15 = wx.FlexGridSizer(4, 2, 0, 0)
         grid_sizer_20 = wx.FlexGridSizer(1, 2, 0, 0)
