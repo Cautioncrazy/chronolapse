@@ -89,6 +89,12 @@ class chronoFrame(wx.Frame):
         self.ignoreidlecheck = wx.CheckBox(self.notebook_1_capturepane, wx.ID_ANY, _("Skip Capture if Idle"))
         self.startbutton = wx.Button(self.notebook_1_capturepane, wx.ID_ANY, _("Start Capture"))
         self.forcecapturebutton = wx.Button(self.notebook_1_capturepane, wx.ID_ANY, _("Force Capture"))
+
+        # Multi-Window Capture UI elements
+        self.multiwindow_label = wx.StaticText(self.notebook_1_capturepane, wx.ID_ANY, _("Multi-Window Capture Targets:"))
+        self.multiwindow_listbox = wx.CheckListBox(self.notebook_1_capturepane, wx.ID_ANY, choices=[])
+        self.multiwindow_refreshbutton = wx.Button(self.notebook_1_capturepane, wx.ID_ANY, _("Refresh Open Windows"))
+
         self.progresspanel = ProgressPanel(self.notebook_1_capturepane, wx.ID_ANY)
         self.notebook_1_pippane = wx.Panel(self.notebook_1, wx.ID_ANY)
         self.label_1 = wx.StaticText(self.notebook_1_pippane, wx.ID_ANY, _("Picture in Picture:"))
@@ -146,6 +152,8 @@ class chronoFrame(wx.Frame):
         self.Bind(wx.EVT_BUTTON, self.webcamConfigurePressed, self.configurewebcambutton)
         self.Bind(wx.EVT_BUTTON, self.startCapturePressed, self.startbutton)
         self.Bind(wx.EVT_BUTTON, self.forceCapturePressed, self.forcecapturebutton)
+        self.Bind(wx.EVT_BUTTON, self.onRefreshWindowsPressed, self.multiwindow_refreshbutton)
+        self.Bind(wx.EVT_CHECKLISTBOX, self.onMultiWindowCheck, self.multiwindow_listbox)
         self.Bind(wx.EVT_BUTTON, self.pipMainImageBrowsePressed, self.pipmainimagefolderbrowse)
         self.Bind(wx.EVT_BUTTON, self.pipPipImageBrowsePressed, self.pippipimagefolderbrowse)
         self.Bind(wx.EVT_BUTTON, self.pipOutputBrowsePressed, self.pipoutputimagefolderbrowse)
@@ -279,6 +287,15 @@ class chronoFrame(wx.Frame):
         grid_sizer_26.AddGrowableCol(0)
         grid_sizer_26.AddGrowableCol(1)
         grid_sizer_1.Add(grid_sizer_26, 1, wx.EXPAND, 0)
+
+        # Add Multi-Window Capture elements to the Capture Tab layout
+        multiwindow_sizer = wx.BoxSizer(wx.VERTICAL)
+        multiwindow_sizer.Add(self.multiwindow_label, 0, wx.BOTTOM, 5)
+        multiwindow_sizer.Add(self.multiwindow_listbox, 1, wx.EXPAND | wx.BOTTOM, 5)
+        multiwindow_sizer.Add(self.multiwindow_refreshbutton, 0, wx.ALIGN_RIGHT)
+
+        grid_sizer_1.Add(multiwindow_sizer, 1, wx.ALL | wx.EXPAND, 10)
+
         grid_sizer_1.Add(self.progresspanel, 1, wx.EXPAND, 0)
         self.notebook_1_capturepane.SetSizer(grid_sizer_1)
         grid_sizer_1.AddGrowableRow(2)
@@ -460,6 +477,14 @@ class chronoFrame(wx.Frame):
 
     def createAudioPressed(self, event):  # wxGlade: chronoFrame.<event_handler>
         print("Event handler 'createAudioPressed' not implemented!")
+        event.Skip()
+
+    def onRefreshWindowsPressed(self, event):
+        print("Event handler 'onRefreshWindowsPressed' not implemented!")
+        event.Skip()
+
+    def onMultiWindowCheck(self, event):
+        print("Event handler 'onMultiWindowCheck' not implemented!")
         event.Skip()
 
 # end of class chronoFrame
