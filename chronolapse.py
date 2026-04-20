@@ -50,9 +50,10 @@ has_win32gui = False
 try:
     import win32gui
     import win32con
+    import win32ui
     has_win32gui = True
 except Exception as e:
-    logging.error("Failed to import win32gui: %s" % e)
+    logging.error("Failed to import win32gui/win32ui: %s" % e)
 
 import ctypes
 try:
@@ -596,69 +597,94 @@ class ChronoFrame(chronoFrame):
         all_windows = []
         win32gui.EnumWindows(callback, all_windows)
 
-        with mss.mss() as sct:
-            for target_name in target_windows:
-                for hwnd, title in all_windows:
-                    if target_name.lower() in title.lower():
+        for target_name in target_windows:
+            for hwnd, title in all_windows:
+                if target_name.lower() in title.lower():
+                    try:
+                        # Try to get the window rect using DwmGetWindowAttribute to ignore drop shadows
                         try:
-                            # Try to get the window rect using DwmGetWindowAttribute to ignore drop shadows
-                            try:
-                                rect = RECT()
-                                DWMWA_EXTENDED_FRAME_BOUNDS = 9
-                                ctypes.windll.dwmapi.DwmGetWindowAttribute(hwnd, ctypes.wintypes.DWORD(DWMWA_EXTENDED_FRAME_BOUNDS), ctypes.byref(rect), ctypes.sizeof(rect))
-                                left, top, right, bottom = rect.left, rect.top, rect.right, rect.bottom
-                            except Exception as e:
-                                # Fallback if DWM fails
-                                rect = win32gui.GetWindowRect(hwnd)
-                                left, top, right, bottom = rect
-
-                            width = right - left
-                            height = bottom - top
-
-                            # Ignore invisible/minimized windows properly
-                            if width <= 0 or height <= 0:
-                                continue
-
-                            monitor = {"top": top, "left": left, "width": width, "height": height}
-
-                            sct_img = sct.grab(monitor)
-
-                            img = Image.frombytes("RGB", sct_img.size, sct_img.bgra, "raw", "BGRX")
-
-                            if timestamp:
-                                stamp = time.strftime(self.getConfig('screenshot_timestamp_format'))
-                                if self.countdown < 1:
-                                    now = time.time()
-                                    micro = str(now - math.floor(now))[0:4]
-                                    stamp = stamp + micro
-
-                                draw = ImageDraw.Draw(img)
-                                font = ImageFont.load_default()
-                                draw.text((20, img.height - 30), stamp, fill=(255, 255, 255), font=font)
-
-                            # Save with window name appended
-                            safe_title = "".join([c for c in title if c.isalpha() or c.isdigit() or c==' ']).rstrip()
-                            if not safe_title:
-                                safe_title = target_name.replace(" ", "")
-
-                            safe_name = safe_title.replace(" ", "_")
-
-                            # Construct new filename
-                            name, ext = os.path.splitext(filename)
-                            new_filename = f"{name}_{safe_name}{ext}"
-
-                            if file_format == 'gif':
-                                fileName = os.path.join(folder, "%s%s.gif" % (prefix, new_filename))
-                                img.save(fileName, "GIF")
-                            elif file_format == 'png':
-                                fileName = os.path.join(folder, "%s%s.png" % (prefix, new_filename))
-                                img.save(fileName, "PNG")
-                            else:
-                                fileName = os.path.join(folder, "%s%s.jpg" % (prefix, new_filename))
-                                img.save(fileName, "JPEG")
-
+                            rect = RECT()
+                            DWMWA_EXTENDED_FRAME_BOUNDS = 9
+                            ctypes.windll.dwmapi.DwmGetWindowAttribute(hwnd, ctypes.wintypes.DWORD(DWMWA_EXTENDED_FRAME_BOUNDS), ctypes.byref(rect), ctypes.sizeof(rect))
+                            left, top, right, bottom = rect.left, rect.top, rect.right, rect.bottom
                         except Exception as e:
-                            logging.error("Could not capture window %s: %s" % (title, e))
+                            # Fallback if DWM fails
+                            rect = win32gui.GetWindowRect(hwnd)
+                            left, top, right, bottom = rect
+
+                        width = right - left
+                        height = bottom - top
+
+                        # Ignore invisible/minimized windows properly
+                        if width <= 0 or height <= 0:
+                            continue
+
+                        # Use PrintWindow to capture the window directly even if it's in the background
+                        hwndDC = win32gui.GetWindowDC(hwnd)
+                        mfcDC = win32ui.CreateDCFromHandle(hwndDC)
+                        saveDC = mfcDC.CreateCompatibleDC()
+
+                        saveBitMap = win32ui.CreateBitmap()
+                        saveBitMap.CreateCompatibleBitmap(mfcDC, width, height)
+
+                        saveDC.SelectObject(saveBitMap)
+
+                        # PW_RENDERFULLCONTENT = 2 to capture hardware accelerated windows correctly on Win 8.1+
+                        # Using 3 (PW_CLIENTONLY | PW_RENDERFULLCONTENT) captures client, using 2 captures full frame.
+                        result = ctypes.windll.user32.PrintWindow(hwnd, saveDC.GetSafeHdc(), 2)
+
+                        bmpinfo = saveBitMap.GetInfo()
+                        bmpstr = saveBitMap.GetBitmapBits(True)
+
+                        img = Image.frombuffer(
+                            'RGB',
+                            (bmpinfo['bmWidth'], bmpinfo['bmHeight']),
+                            bmpstr, 'raw', 'BGRX', 0, 1)
+
+                        # Clean up DC objects to prevent GDI leaks
+                        win32gui.DeleteObject(saveBitMap.GetHandle())
+                        saveDC.DeleteDC()
+                        mfcDC.DeleteDC()
+                        win32gui.ReleaseDC(hwnd, hwndDC)
+
+                        if result != 1:
+                            logging.error("PrintWindow failed for window %s" % title)
+                            continue
+
+                        if timestamp:
+                            stamp = time.strftime(self.getConfig('screenshot_timestamp_format'))
+                            if self.countdown < 1:
+                                now = time.time()
+                                micro = str(now - math.floor(now))[0:4]
+                                stamp = stamp + micro
+
+                            draw = ImageDraw.Draw(img)
+                            font = ImageFont.load_default()
+                            draw.text((20, img.height - 30), stamp, fill=(255, 255, 255), font=font)
+
+                        # Save with window name appended
+                        safe_title = "".join([c for c in title if c.isalpha() or c.isdigit() or c==' ']).rstrip()
+                        if not safe_title:
+                            safe_title = target_name.replace(" ", "")
+
+                        safe_name = safe_title.replace(" ", "_")
+
+                        # Construct new filename
+                        name, ext = os.path.splitext(filename)
+                        new_filename = f"{name}_{safe_name}{ext}"
+
+                        if file_format == 'gif':
+                            fileName = os.path.join(folder, "%s%s.gif" % (prefix, new_filename))
+                            img.save(fileName, "GIF")
+                        elif file_format == 'png':
+                            fileName = os.path.join(folder, "%s%s.png" % (prefix, new_filename))
+                            img.save(fileName, "PNG")
+                        else:
+                            fileName = os.path.join(folder, "%s%s.jpg" % (prefix, new_filename))
+                            img.save(fileName, "JPEG")
+
+                    except Exception as e:
+                        logging.error("Could not capture window %s: %s" % (title, e))
 
     def saveScreenshot(self, filename):
         timestamp = self.getConfig('screenshot_timestamp')
@@ -2100,10 +2126,13 @@ class TaskBarIcon(wx.adv.TaskBarIcon):
         self.set_icon_action_text(False)
 
     def set_icon_action_text(self, minimized=True):
-        if minimized:
-            self.menu.FindItemById(self.wx_id).SetText("Restore")
-        else:
-            self.menu.FindItemById(self.wx_id).SetText("Minimize")
+        if hasattr(self, 'menu') and self.menu:
+            item = self.menu.FindItemById(self.wx_id)
+            if item:
+                if minimized:
+                    item.SetText("Restore")
+                else:
+                    item.SetText("Minimize")
 
     def iconized(self, event):
         # bound on non-windows only
