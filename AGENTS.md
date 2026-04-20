@@ -15,7 +15,8 @@ Our initial target applications for multi-window capture include:
 
 ### Phase 1: Core Logic via Configuration (Complete)
 - **Objective:** Implement core multi-window capture logic driven strictly by the `chronolapse.config` file.
-- **Technology Stack:** Python, `win32gui`, and `mss`.
+- **Technology Stack:** Python, `pywin32` (provides `win32gui`), and `mss`.
+- **Dependencies:** `pip install pywin32 mss`
 - **Functionality:**
   - Read a user-defined list of target window names via the `target_windows` parameter in the configuration file.
   - Fetch exact coordinates and bounding boxes of specific open windows dynamically. *Implemented `win32gui.GetWindowRect()` to isolate captures to specific window coordinates.*
