@@ -49,10 +49,18 @@ except:
 try:
     import win32gui
     import win32con
+    import ctypes
+    from ctypes.wintypes import RECT
 except:
     pass
 
 from chronolapsegui import *
+
+if ON_WINDOWS:
+    try:
+        ctypes.windll.user32.SetProcessDPIAware()
+    except Exception as e:
+        logging.error("Failed to set DPI awareness: %s" % e)
 
 
 
@@ -260,6 +268,10 @@ class ChronoFrame(chronoFrame):
         self._bindUI(self.frequencytext, 'frequency')
         self._bindUI(self.screenshotcheck, 'use_screenshot')
         self._bindUI(self.webcamcheck, 'use_webcam')
+
+        # Populate the window list on load
+        if ON_WINDOWS:
+            self.onRefreshWindowsPressed(None)
         self._bindUI(self.ignoreidlecheck, 'skip_if_idle')
 
         self._bindUI(self.pipmainimagefoldertext, 'pip_main_folder')
@@ -580,9 +592,17 @@ class ChronoFrame(chronoFrame):
                 for hwnd, title in all_windows:
                     if target_name.lower() in title.lower():
                         try:
-                            # Try to get the window rect
-                            rect = win32gui.GetWindowRect(hwnd)
-                            left, top, right, bottom = rect
+                            # Try to get the window rect using DwmGetWindowAttribute to ignore drop shadows
+                            try:
+                                rect = RECT()
+                                DWMWA_EXTENDED_FRAME_BOUNDS = 9
+                                ctypes.windll.dwmapi.DwmGetWindowAttribute(hwnd, ctypes.wintypes.DWORD(DWMWA_EXTENDED_FRAME_BOUNDS), ctypes.byref(rect), ctypes.sizeof(rect))
+                                left, top, right, bottom = rect.left, rect.top, rect.right, rect.bottom
+                            except Exception as e:
+                                # Fallback if DWM fails
+                                rect = win32gui.GetWindowRect(hwnd)
+                                left, top, right, bottom = rect
+
                             width = right - left
                             height = bottom - top
 
@@ -1839,6 +1859,40 @@ You can download the new version at:
 
     def exitMenuClicked(self, event):  # wxGlade: chronoFrame.<event_handler>
         self.Close()
+
+    def onRefreshWindowsPressed(self, event):
+        if not ON_WINDOWS:
+            return
+
+        all_windows = []
+        def callback(hwnd, windows):
+            if win32gui.IsWindowVisible(hwnd):
+                title = win32gui.GetWindowText(hwnd)
+                if title and title.strip():
+                    windows.append(title)
+            return True
+
+        win32gui.EnumWindows(callback, all_windows)
+
+        # Sort and remove duplicates
+        all_windows = sorted(list(set(all_windows)))
+
+        # Get currently checked items
+        target_str = self.getConfig('target_windows')
+        current_targets = [w.strip() for w in target_str.split(',') if w.strip()]
+
+        # Update listbox
+        self.multiwindow_listbox.Set(all_windows)
+
+        # Check items that are in config
+        for i, title in enumerate(all_windows):
+            if any(target.lower() in title.lower() for target in current_targets):
+                self.multiwindow_listbox.Check(i, True)
+
+    def onMultiWindowCheck(self, event):
+        checked_items = self.multiwindow_listbox.GetCheckedStrings()
+        target_str = ", ".join(checked_items)
+        self.updateConfig({'target_windows': target_str}, from_ui=True)
 
 
 class ScreenshotConfigDialog(screenshotConfigDialog):
