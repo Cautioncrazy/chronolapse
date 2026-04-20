@@ -51,8 +51,8 @@ try:
     import win32gui
     import win32con
     has_win32gui = True
-except:
-    pass
+except Exception as e:
+    logging.error("Failed to import win32gui: %s" % e)
 
 import ctypes
 try:
@@ -1891,12 +1891,14 @@ You can download the new version at:
         current_targets = [w.strip() for w in target_str.split(',') if w.strip()]
 
         # Update listbox
-        self.multiwindow_listbox.Set(all_windows)
+        self.multiwindow_listbox.Clear()
+        if all_windows:
+            self.multiwindow_listbox.AppendItems(all_windows)
 
-        # Check items that are in config
-        for i, title in enumerate(all_windows):
-            if any(target.lower() in title.lower() for target in current_targets):
-                self.multiwindow_listbox.Check(i, True)
+            # Check items that are in config
+            for i, title in enumerate(all_windows):
+                if any(target.lower() in title.lower() for target in current_targets):
+                    self.multiwindow_listbox.Check(i, True)
 
     def onMultiWindowCheck(self, event):
         checked_items = self.multiwindow_listbox.GetCheckedStrings()
